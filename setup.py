@@ -11,6 +11,9 @@ with open('breakers/__init__.py', 'rb') as f:
         f.read().decode('utf-8')).group(1)))
 
 
+tests_require = ['pytest', ]
+
+
 setup(
     name='breakers',
     author='Marcus Martins',
@@ -24,4 +27,9 @@ setup(
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python',
     ],
+    install_requires=[
+        'sortedcontainers>=0.9.6',
+    ],
+    tests_require=tests_require,
+    extras_require={'test': tests_require},
 )

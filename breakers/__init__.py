@@ -7,5 +7,8 @@
     :copyright: (c) 2015 by Marcus Martins.
     :license: Apache License, Version 2.0, see LICENSE for more details.
 """
+from .breaker import Breaker
+
+__all__ = [Breaker, ]
 
 __version__ = '0.1'
