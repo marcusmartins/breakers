@@ -9,6 +9,6 @@
 """
 from .breaker import Breaker
 
-__all__ = [Breaker, ]
+__all__ = ['Breaker', ]
 
 __version__ = '0.1'
