@@ -1,4 +1,5 @@
 import time
+import threading
 from contextlib import contextmanager
 from functools import wraps
 
@@ -55,6 +56,9 @@ class Breaker(object):
         self._calls = SortedList()
         self._errors = SortedList()
 
+        self._calls_lock = threading.Lock()
+        self._errors_lock = threading.Lock()
+
         # minimum number of request before we start tripping
         self._minimum_threshold = 5
 
@@ -64,7 +68,8 @@ class Breaker(object):
             raise BreakerOpen()
 
         # increment the run count
-        self.increment_rolling_window('_calls')
+        with self._calls_lock:
+            self.increment_rolling_window('_calls')
 
         try:
             yield
@@ -79,7 +84,8 @@ class Breaker(object):
             raise BreakerOpen()
 
         # increment the run count
-        self.increment_rolling_window('_calls')
+        with self._calls_lock:
+            self.increment_rolling_window('_calls')
 
         try:
             ret = func(*args, **kwargs)
@@ -96,10 +102,13 @@ class Breaker(object):
 
     def reset(self):
         self._last_open = None
-        self._errors = SortedList()
+        with self._errors_lock:
+            self._errors = SortedList()
 
     def process_error(self):
-        count = self.increment_rolling_window('_errors')
+        with self._errors_lock:
+            count = self.increment_rolling_window('_errors')
+
         if self.half_open or self.should_open(count):
             self.trip()
 
