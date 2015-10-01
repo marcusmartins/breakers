@@ -1,16 +1,69 @@
 import unittest
 import time
 
-
 from breakers import Breaker
+from breakers.exceptions import BreakerOpen
+
+
+def echo(foo):
+    return foo
 
 
 class TestStrategy(unittest.TestCase):
     def setUp(self):
         self.breaker = Breaker(service='test', threshold=5)
 
-    def test_breaker_init(self):
-        self.breaker.run()
+    def test_breaker_run_with_arg(self):
+        ret = self.breaker.call(echo, *['hello', ])
+        self.assertEqual(ret, 'hello')
+
+        ret = self.breaker.call(echo, 'hello')
+        self.assertEqual(ret, 'hello')
+
+    def test_breaker_run_with_kwarg(self):
+        ret = self.breaker.call(echo, **{'foo': 'hello'})
+        self.assertEqual(ret, 'hello')
+
+        ret = self.breaker.call(echo, foo='hello')
+        self.assertEqual(ret, 'hello')
+
+    def test_breaker_with_context_manager(self):
+        with self.breaker():
+            print('hello')
+
+        self.assertEqual(len(self.breaker._calls), 1)
+
+    def test_breaker_with_error(self):
+        with self.assertRaises(RuntimeError):
+            with self.breaker():
+                raise RuntimeError("Error")
+
+        self.assertEqual(len(self.breaker._calls), 1)
+        self.assertEqual(len(self.breaker._errors), 1)
+
+    def test_breaker_trip_open(self):
+        for i in xrange(4):
+            with self.assertRaises(RuntimeError):
+                with self.breaker():
+                    raise RuntimeError("Error")
+
+        self.assertEqual(len(self.breaker._calls), 4)
+        self.assertEqual(len(self.breaker._errors), 4)
+        self.assertFalse(self.breaker.open)
+
+        # 1 more run and we should trigger the open breaker
+        try:
+            with self.breaker():
+                raise RuntimeError("Error")
+        except Exception:
+            pass
+
+        self.assertTrue(self.breaker.open)
+
+        # subsequent calls should get BreakerOpen exception
+        with self.assertRaises(BreakerOpen):
+                with self.breaker():
+                    raise RuntimeError("Error")
 
     def test_initial_state(self):
         self.assertFalse(self.breaker.open)
@@ -41,7 +94,7 @@ class TestStrategy(unittest.TestCase):
         self.assertEquals(breaker.increment_rolling_window('_errors'), 1)
         # sleep for over a second so that previous event will be cleaned
         #time.sleep(2)
-        #self.assertEquals(breaker.increment_rolling_window(), 1)
+        #self.assertEquals(breaker.increment_rolling_window('_errors'), 1)
 
     def test_should_open_if_exceeds_threshold(self):
         breaker = Breaker(service='test', threshold=5)
@@ -85,7 +138,7 @@ class TestStrategy(unittest.TestCase):
                           strategy='percentage')
         # first we run 60 times to bump the number of runs.
         for i in range(60):
-            breaker.increment_rolling_window('_runs')
+            breaker.increment_rolling_window('_calls')
 
         # five errors out of 60 runs is just bellow 10%
         for i in range(5):
@@ -94,6 +147,3 @@ class TestStrategy(unittest.TestCase):
         # one more error and we're above 10%
         breaker.process_error()
         self.assertTrue(breaker.open)
-
-
-
